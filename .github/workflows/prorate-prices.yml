@@ -1,0 +1,59 @@
+name: Prorate BigCommerce prices
+
+on:
+  schedule:
+    # GitHub cron is UTC. This is 8:17 AM CDT / 7:17 AM CST every day.
+    - cron: "17 13 * * *"
+  workflow_dispatch:
+    inputs:
+      category_id:
+        description: "Category ID (blank uses the repository variable)"
+        required: false
+        type: string
+      apply_changes:
+        description: "Actually update prices"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bigcommerce-price-proration
+  cancel-in-progress: false
+
+jobs:
+  prorate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONPATH: src
+      BIGCOMMERCE_STORE_HASH: ${{ secrets.BIGCOMMERCE_STORE_HASH }}
+      BIGCOMMERCE_ACCESS_TOKEN: ${{ secrets.BIGCOMMERCE_ACCESS_TOKEN }}
+      BIGCOMMERCE_CATEGORY_ID: ${{ inputs.category_id || vars.BIGCOMMERCE_CATEGORY_ID }}
+      APPLY_CHANGES: ${{ (github.event_name == 'workflow_dispatch' && inputs.apply_changes == true) || (github.event_name == 'schedule' && vars.PRORATION_APPLY_CHANGES == 'true') }}
+      REQUIRE_HIDDEN: ${{ vars.PRORATION_REQUIRE_HIDDEN || 'true' }}
+      MAX_PRODUCTS: ${{ vars.PRORATION_MAX_PRODUCTS || '25' }}
+      MAX_VARIANTS: ${{ vars.PRORATION_MAX_VARIANTS || '50' }}
+      SKU_SUFFIX: "MY"
+      REDUCTION_FRACTION: "0.08333333333333333333333333333"
+      MINIMUM_PRICE: "0.01"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Prorate category prices
+        run: python -m proration
+
+      - name: Upload audit report
+        if: always() && hashFiles('proration-report.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: proration-report-${{ github.run_id }}
+          path: proration-report.json
+          retention-days: 30
