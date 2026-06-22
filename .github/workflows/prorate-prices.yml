@@ -29,16 +29,6 @@ jobs:
     timeout-minutes: 15
     env:
       PYTHONPATH: src
-      BIGCOMMERCE_STORE_HASH: ${{ secrets.BIGCOMMERCE_STORE_HASH }}
-      BIGCOMMERCE_ACCESS_TOKEN: ${{ secrets.BIGCOMMERCE_ACCESS_TOKEN }}
-      BIGCOMMERCE_CATEGORY_ID: ${{ inputs.category_id || vars.BIGCOMMERCE_CATEGORY_ID }}
-      APPLY_CHANGES: ${{ (github.event_name == 'workflow_dispatch' && inputs.apply_changes == true) || (github.event_name == 'schedule' && vars.PRORATION_APPLY_CHANGES == 'true') }}
-      REQUIRE_HIDDEN: ${{ vars.PRORATION_REQUIRE_HIDDEN || 'true' }}
-      MAX_PRODUCTS: ${{ vars.PRORATION_MAX_PRODUCTS || '25' }}
-      MAX_VARIANTS: ${{ vars.PRORATION_MAX_VARIANTS || '50' }}
-      SKU_SUFFIX: "MY"
-      REDUCTION_FRACTION: "0.08333333333333333333333333333"
-      MINIMUM_PRICE: "0.01"
 
     steps:
       - uses: actions/checkout@v4
@@ -47,7 +37,21 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Verify pricing logic
+        run: python -m unittest discover -s tests -v
+
       - name: Prorate category prices
+        env:
+          BIGCOMMERCE_STORE_HASH: ${{ secrets.BIGCOMMERCE_STORE_HASH }}
+          BIGCOMMERCE_ACCESS_TOKEN: ${{ secrets.BIGCOMMERCE_ACCESS_TOKEN }}
+          BIGCOMMERCE_CATEGORY_ID: ${{ inputs.category_id || vars.BIGCOMMERCE_CATEGORY_ID }}
+          APPLY_CHANGES: ${{ (github.event_name == 'workflow_dispatch' && inputs.apply_changes == true) || (github.event_name == 'schedule' && vars.PRORATION_APPLY_CHANGES == 'true') }}
+          REQUIRE_HIDDEN: ${{ vars.PRORATION_REQUIRE_HIDDEN || 'true' }}
+          MAX_PRODUCTS: ${{ vars.PRORATION_MAX_PRODUCTS || '25' }}
+          MAX_VARIANTS: ${{ vars.PRORATION_MAX_VARIANTS || '50' }}
+          SKU_SUFFIX: "MY"
+          REDUCTION_FRACTION: "0.08333333333333333333333333333"
+          MINIMUM_PRICE: "0.01"
         run: python -m proration
 
       - name: Upload audit report
