@@ -31,6 +31,7 @@ class Config:
     store_hash: str
     access_token: str
     category_id: int
+    allowed_category_id: int | None
     apply_changes: bool
     require_hidden: bool
     max_products: int
@@ -51,6 +52,11 @@ class Config:
             store_hash=os.environ["BIGCOMMERCE_STORE_HASH"],
             access_token=os.environ["BIGCOMMERCE_ACCESS_TOKEN"],
             category_id=int(os.environ["BIGCOMMERCE_CATEGORY_ID"]),
+            allowed_category_id=(
+                int(os.environ["ALLOWED_CATEGORY_ID"])
+                if os.environ.get("ALLOWED_CATEGORY_ID")
+                else None
+            ),
             apply_changes=parse_bool(os.environ.get("APPLY_CHANGES")),
             require_hidden=parse_bool(os.environ.get("REQUIRE_HIDDEN"), default=True),
             max_products=int(os.environ.get("MAX_PRODUCTS", "25")),
@@ -66,6 +72,13 @@ class Config:
     def validate(self) -> None:
         if self.category_id <= 0:
             raise ValueError("BIGCOMMERCE_CATEGORY_ID must be positive")
+        if (
+            self.allowed_category_id is not None
+            and self.category_id != self.allowed_category_id
+        ):
+            raise ValueError(
+                f"BIGCOMMERCE_CATEGORY_ID must be {self.allowed_category_id}, got {self.category_id}"
+            )
         if self.max_products <= 0:
             raise ValueError("MAX_PRODUCTS must be positive")
         if self.max_variants <= 0:

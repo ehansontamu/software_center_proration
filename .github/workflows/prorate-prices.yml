@@ -1,19 +1,12 @@
 name: Prorate BigCommerce prices
 
 on:
-  schedule:
-    # GitHub cron is UTC. This is 8:17 AM CDT / 7:17 AM CST every day.
-    - cron: "17 13 * * *"
   workflow_dispatch:
     inputs:
-      category_id:
-        description: "Category ID (blank uses the repository variable)"
-        required: false
-        type: string
       apply_changes:
         description: "Actually update prices"
         required: true
-        default: false
+        default: true
         type: boolean
 
 permissions:
@@ -44,8 +37,9 @@ jobs:
         env:
           BIGCOMMERCE_STORE_HASH: ${{ secrets.BIGCOMMERCE_STORE_HASH }}
           BIGCOMMERCE_ACCESS_TOKEN: ${{ secrets.BIGCOMMERCE_ACCESS_TOKEN }}
-          BIGCOMMERCE_CATEGORY_ID: ${{ inputs.category_id || vars.BIGCOMMERCE_CATEGORY_ID }}
-          APPLY_CHANGES: ${{ (github.event_name == 'workflow_dispatch' && inputs.apply_changes == true) || (github.event_name == 'schedule' && vars.PRORATION_APPLY_CHANGES == 'true') }}
+          BIGCOMMERCE_CATEGORY_ID: "44"
+          ALLOWED_CATEGORY_ID: "44"
+          APPLY_CHANGES: ${{ inputs.apply_changes == true }}
           REQUIRE_HIDDEN: ${{ vars.PRORATION_REQUIRE_HIDDEN || 'true' }}
           MAX_PRODUCTS: ${{ vars.PRORATION_MAX_PRODUCTS || '25' }}
           MAX_VARIANTS: ${{ vars.PRORATION_MAX_VARIANTS || '50' }}

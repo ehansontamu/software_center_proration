@@ -1,8 +1,9 @@
 # Software Center Price Proration
 
-This project runs a GitHub Actions job that finds products in one BigCommerce
-category and reduces the explicit variant price of variants whose SKU ends in
-`MY` by `1/12` (8.3333%) per run. The parent product price is never changed.
+This project runs a manual GitHub Actions job that finds products in
+BigCommerce category `44` and reduces the explicit variant price of variants
+whose SKU ends in `MY` by `1/12` (8.3333%) per run. The parent product price is
+never changed.
 
 For example, `$120.00` becomes `$110.00` on the first run, then `$100.83` on the
 second. This is a compounding reduction. It does not subtract `1/12` of an
@@ -11,8 +12,8 @@ the future brand-based monthly workflow.
 
 ## Built-in safeguards
 
-- Runs are dry-run unless a separate write switch is enabled.
-- The product scope is a numeric category ID, not a category name.
+- Manual workflow runs apply changes to category `44` when **Actually update prices** is checked.
+- The product scope is locked to numeric category ID `44`, not a category name.
 - Only variant SKUs ending in `MY` (case-insensitive) are selected.
 - A matching variant without an explicit variant price aborts the entire run.
 - All products must be hidden by default.
@@ -31,9 +32,8 @@ an apply job merely to recreate its report.
 ## BigCommerce setup
 
 Create a store-level API account with read/write access to Products. Record the
-store hash from the API path and the access token. Create the `proration testing`
-category, add only non-visible test products, and find the category's numeric ID
-in the control panel URL or Catalog API.
+store hash from the API path and the access token. Create the `prorationtest`
+category with numeric ID `44`, and add only non-visible test products.
 
 In GitHub, open **Settings > Secrets and variables > Actions** and add:
 
@@ -41,8 +41,6 @@ In GitHub, open **Settings > Secrets and variables > Actions** and add:
 | --- | --- | --- |
 | Secret | `BIGCOMMERCE_STORE_HASH` | Store hash only, not a URL |
 | Secret | `BIGCOMMERCE_ACCESS_TOKEN` | Store API account token |
-| Variable | `BIGCOMMERCE_CATEGORY_ID` | Numeric test category ID |
-| Variable | `PRORATION_APPLY_CHANGES` | `false` initially |
 | Variable | `PRORATION_REQUIRE_HIDDEN` | `true` |
 | Variable | `PRORATION_MAX_PRODUCTS` | A small test limit such as `10` |
 | Variable | `PRORATION_MAX_VARIANTS` | A small test limit such as `10` |
@@ -51,20 +49,19 @@ Do not store the token in the repository.
 
 ## Safe rollout
 
-1. Leave `PRORATION_APPLY_CHANGES=false`.
-2. Run **Prorate BigCommerce prices** manually with **Actually update prices** unchecked.
-3. Inspect the workflow log and downloaded `proration-report` artifact.
-4. Run it manually once with **Actually update prices** checked.
-5. Verify the products in BigCommerce.
-6. Set `PRORATION_APPLY_CHANGES=true` only when scheduled runs should write.
+1. Run **Prorate BigCommerce prices** manually with **Actually update prices** unchecked.
+2. Inspect the workflow log and downloaded `proration-report` artifact.
+3. Run it manually once with **Actually update prices** checked.
+4. Verify the products in BigCommerce.
 
-The schedule is `17 13 * * *`: daily at 13:17 UTC, which is 8:17 AM Central
-Daylight Time or 7:17 AM Central Standard Time. GitHub scheduled workflows use
-UTC and run from the default branch. To change it to the first day of every
-month, use:
+There is currently no scheduled trigger. To re-enable a first-day-of-month run
+later, add a schedule trigger like this:
 
 ```yaml
-- cron: "17 13 1 * *"
+on:
+  schedule:
+    - cron: "17 13 1 * *"
+  workflow_dispatch:
 ```
 
 ## Run locally
@@ -73,7 +70,8 @@ month, use:
 $env:PYTHONPATH = "src"
 $env:BIGCOMMERCE_STORE_HASH = "your-store-hash"
 $env:BIGCOMMERCE_ACCESS_TOKEN = "your-token"
-$env:BIGCOMMERCE_CATEGORY_ID = "123"
+$env:BIGCOMMERCE_CATEGORY_ID = "44"
+$env:ALLOWED_CATEGORY_ID = "44"
 $env:APPLY_CHANGES = "false"
 python -m proration
 ```

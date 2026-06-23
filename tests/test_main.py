@@ -28,6 +28,7 @@ def make_config(report_path, *, apply_changes=False, require_hidden=True, max_pr
         store_hash="store",
         access_token="token",
         category_id=42,
+        allowed_category_id=None,
         apply_changes=apply_changes,
         require_hidden=require_hidden,
         max_products=max_products,
@@ -104,6 +105,26 @@ class RunTests(unittest.TestCase):
                     products,
                     make_config(Path(directory) / "report.json", max_products=1),
                 )
+
+    def test_allowed_category_id_mismatch_fails_validation(self):
+        with TemporaryDirectory() as directory:
+            config = make_config(Path(directory) / "report.json")
+            config = Config(
+                store_hash=config.store_hash,
+                access_token=config.access_token,
+                category_id=43,
+                allowed_category_id=44,
+                apply_changes=config.apply_changes,
+                require_hidden=config.require_hidden,
+                max_products=config.max_products,
+                max_variants=config.max_variants,
+                sku_suffix=config.sku_suffix,
+                reduction_fraction=config.reduction_fraction,
+                minimum_price=config.minimum_price,
+                report_path=config.report_path,
+            )
+            with self.assertRaisesRegex(ValueError, "must be 44"):
+                config.validate()
 
 
 if __name__ == "__main__":
