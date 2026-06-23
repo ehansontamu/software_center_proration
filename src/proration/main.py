@@ -104,28 +104,33 @@ def validate_scope(products: list[dict], config: Config) -> None:
         raise ValueError(f"Visible products found while REQUIRE_HIDDEN=true: {ids}")
 
 
+def collect_variants(
+    products: list[dict], client: BigCommerceClient
+) -> list[dict]:
+    variants = []
+    for product in products:
+        for variant in client.get_product_variants(int(product["id"])):
+            variants.append(
+                {
+                    **variant,
+                    "product_id": product["id"],
+                    "product_name": product["name"],
+                    "is_visible": product["is_visible"],
+                }
+            )
+    return variants
+
+
 def find_matching_variants(
-    products: list[dict], config: Config, client: BigCommerceClient
+    variants: list[dict], config: Config
 ) -> list[dict]:
     matches = []
     suffix = config.sku_suffix.casefold()
-    for product in products:
-        for variant in client.get_product_variants(int(product["id"])):
-            sku = str(variant.get("sku") or "")
-            if sku.casefold().endswith(suffix):
-                matches.append(
-                    {
-                        **variant,
-                        "product_id": product["id"],
-                        "product_name": product["name"],
-                        "is_visible": product["is_visible"],
-                    }
-                )
+    for variant in variants:
+        sku = str(variant.get("sku") or "")
+        if sku.casefold().endswith(suffix):
+            matches.append(variant)
 
-    if not matches:
-        raise ValueError(
-            f"No variants with SKUs ending in {config.sku_suffix!r} were found"
-        )
     if len(matches) > config.max_variants:
         raise ValueError(
             f"Found {len(matches)} matching variants, exceeding MAX_VARIANTS={config.max_variants}"
@@ -139,13 +144,33 @@ def find_matching_variants(
     return matches
 
 
+def inspected_variant_summary(variants: list[dict]) -> list[dict]:
+    return [
+        {
+            "product_id": variant["product_id"],
+            "product_name": variant["product_name"],
+            "variant_id": variant.get("id"),
+            "sku": variant.get("sku"),
+            "price": variant.get("price"),
+            "is_visible": variant["is_visible"],
+        }
+        for variant in variants
+    ]
+
+
 def run(config: Config, client: BigCommerceClient) -> list[VariantPriceChange]:
     products = client.get_products_in_category(config.category_id)
     validate_scope(products, config)
-    variants = find_matching_variants(products, config, client)
+    inspected_variants = collect_variants(products, client)
+    variants = find_matching_variants(inspected_variants, config)
     changes = build_variant_price_changes(
         variants, config.reduction_fraction, config.minimum_price
     )
+
+    if not changes:
+        LOGGER.warning(
+            "No variants with SKUs ending in %r were found", config.sku_suffix
+        )
 
     for change in changes:
         LOGGER.info(
@@ -169,7 +194,10 @@ def run(config: Config, client: BigCommerceClient) -> list[VariantPriceChange]:
         "category_id": config.category_id,
         "sku_suffix": config.sku_suffix,
         "reduction_fraction": str(config.reduction_fraction),
+        "product_count": len(products),
+        "inspected_variant_count": len(inspected_variants),
         "variant_count": len(changes),
+        "inspected_variants": inspected_variant_summary(inspected_variants),
         "changes": [change.as_dict() for change in changes],
     }
     config.report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

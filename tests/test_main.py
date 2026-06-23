@@ -6,6 +6,7 @@ import unittest
 
 from proration.main import (
     Config,
+    collect_variants,
     find_matching_variants,
     run,
     validate_scope,
@@ -79,10 +80,26 @@ class RunTests(unittest.TestCase):
         }
         with TemporaryDirectory() as directory:
             client = FakeClient(products, variants)
-            matches = find_matching_variants(
-                products, make_config(Path(directory) / "report.json"), client
-            )
+            inspected = collect_variants(products, client)
+            matches = find_matching_variants(inspected, make_config(Path(directory) / "report.json"))
             self.assertEqual([variant["id"] for variant in matches], [10])
+
+    def test_no_matching_variant_skus_writes_empty_report(self):
+        products = [{"id": 1, "name": "Hidden", "is_visible": False}]
+        variants = {1: [{"id": 11, "sku": "TEST-OTHER", "price": 120}]}
+        with TemporaryDirectory() as directory:
+            report_path = Path(directory) / "report.json"
+            client = FakeClient(products, variants)
+            changes = run(make_config(report_path, apply_changes=True), client)
+
+            self.assertEqual(changes, [])
+            self.assertEqual(client.updates, [])
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertEqual(report["mode"], "apply")
+            self.assertEqual(report["variant_count"], 0)
+            self.assertEqual(report["inspected_variant_count"], 1)
+            self.assertEqual(report["inspected_variants"][0]["sku"], "TEST-OTHER")
+            self.assertEqual(report["changes"], [])
 
     def test_matching_variant_without_explicit_price_fails(self):
         products = [{"id": 1, "name": "Hidden", "is_visible": False}]
@@ -90,9 +107,8 @@ class RunTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             client = FakeClient(products, variants)
             with self.assertRaisesRegex(ValueError, "explicit variant prices"):
-                find_matching_variants(
-                    products, make_config(Path(directory) / "report.json"), client
-                )
+                inspected = collect_variants(products, client)
+                find_matching_variants(inspected, make_config(Path(directory) / "report.json"))
 
     def test_visible_product_fails_preflight(self):
         products = [{"id": 1, "name": "Visible", "price": 120, "is_visible": True}]
