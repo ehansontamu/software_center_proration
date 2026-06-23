@@ -40,7 +40,7 @@ jobs:
           BIGCOMMERCE_CATEGORY_ID: "44"
           ALLOWED_CATEGORY_ID: "44"
           APPLY_CHANGES: ${{ inputs.apply_changes == true }}
-          REQUIRE_HIDDEN: ${{ vars.PRORATION_REQUIRE_HIDDEN || 'true' }}
+          REQUIRE_HIDDEN: "false"
           MAX_PRODUCTS: ${{ vars.PRORATION_MAX_PRODUCTS || '25' }}
           MAX_VARIANTS: ${{ vars.PRORATION_MAX_VARIANTS || '50' }}
           SKU_SUFFIX: "MY"

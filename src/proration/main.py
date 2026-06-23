@@ -176,14 +176,30 @@ def run(config: Config, client: BigCommerceClient) -> list[VariantPriceChange]:
     return changes
 
 
+def write_error_report(config: Config, error: Exception) -> None:
+    report = {
+        "generated_at": datetime.now(UTC).isoformat(),
+        "mode": "error",
+        "category_id": config.category_id,
+        "sku_suffix": config.sku_suffix,
+        "apply_changes": config.apply_changes,
+        "error": str(error),
+        "changes": [],
+    }
+    config.report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+
+
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    config = None
     try:
         config = Config.from_env()
         client = BigCommerceClient(config.store_hash, config.access_token)
         changes = run(config, client)
     except (ValueError, RuntimeError) as error:
         LOGGER.error("%s", error)
+        if config is not None:
+            write_error_report(config, error)
         return 1
 
     LOGGER.info(

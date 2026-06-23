@@ -14,9 +14,9 @@ the future brand-based monthly workflow.
 
 - Manual workflow runs apply changes to category `44` when **Actually update prices** is checked.
 - The product scope is locked to numeric category ID `44`, not a category name.
+- Visible and hidden products in category `44` are both eligible.
 - Only variant SKUs ending in `MY` (case-insensitive) are selected.
 - A matching variant without an explicit variant price aborts the entire run.
-- All products must be hidden by default.
 - The run aborts before any update when more than 25 products are found.
 - The run aborts before any update when more than 50 variants match.
 - Prices use decimal arithmetic, round to cents, and never drop below `$0.01`.
@@ -33,7 +33,7 @@ an apply job merely to recreate its report.
 
 Create a store-level API account with read/write access to Products. Record the
 store hash from the API path and the access token. Create the `prorationtest`
-category with numeric ID `44`, and add only non-visible test products.
+category with numeric ID `44`, and add the products you want to test.
 
 In GitHub, open **Settings > Secrets and variables > Actions** and add:
 
@@ -41,7 +41,6 @@ In GitHub, open **Settings > Secrets and variables > Actions** and add:
 | --- | --- | --- |
 | Secret | `BIGCOMMERCE_STORE_HASH` | Store hash only, not a URL |
 | Secret | `BIGCOMMERCE_ACCESS_TOKEN` | Store API account token |
-| Variable | `PRORATION_REQUIRE_HIDDEN` | `true` |
 | Variable | `PRORATION_MAX_PRODUCTS` | A small test limit such as `10` |
 | Variable | `PRORATION_MAX_VARIANTS` | A small test limit such as `10` |
 

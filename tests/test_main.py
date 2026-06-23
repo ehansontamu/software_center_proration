@@ -4,7 +4,13 @@ from tempfile import TemporaryDirectory
 import json
 import unittest
 
-from proration.main import Config, find_matching_variants, run, validate_scope
+from proration.main import (
+    Config,
+    find_matching_variants,
+    run,
+    validate_scope,
+    write_error_report,
+)
 
 
 class FakeClient:
@@ -125,6 +131,19 @@ class RunTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "must be 44"):
                 config.validate()
+
+    def test_error_report_is_written_for_preflight_failure(self):
+        with TemporaryDirectory() as directory:
+            report_path = Path(directory) / "report.json"
+            config = make_config(report_path, apply_changes=True)
+            write_error_report(config, ValueError("Visible products found"))
+
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            self.assertEqual(report["mode"], "error")
+            self.assertEqual(report["category_id"], 42)
+            self.assertTrue(report["apply_changes"])
+            self.assertEqual(report["error"], "Visible products found")
+            self.assertEqual(report["changes"], [])
 
 
 if __name__ == "__main__":
