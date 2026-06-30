@@ -43,7 +43,8 @@ jobs:
           REQUIRE_HIDDEN: "false"
           MAX_PRODUCTS: ${{ vars.PRORATION_MAX_PRODUCTS || '25' }}
           MAX_VARIANTS: ${{ vars.PRORATION_MAX_VARIANTS || '50' }}
-          SKU_SUFFIX: "MY"
+          BRAND_ID: "40"
+          SKU_SUFFIX: "-MY"
           REDUCTION_FRACTION: "0.08333333333333333333333333333"
           MINIMUM_PRICE: "0.01"
         run: python -m proration

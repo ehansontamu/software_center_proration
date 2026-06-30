@@ -36,6 +36,7 @@ class Config:
     require_hidden: bool
     max_products: int
     max_variants: int
+    brand_id: int
     sku_suffix: str
     reduction_fraction: Decimal
     minimum_price: Decimal
@@ -61,7 +62,8 @@ class Config:
             require_hidden=parse_bool(os.environ.get("REQUIRE_HIDDEN"), default=True),
             max_products=int(os.environ.get("MAX_PRODUCTS", "25")),
             max_variants=int(os.environ.get("MAX_VARIANTS", "50")),
-            sku_suffix=os.environ.get("SKU_SUFFIX", "MY").strip(),
+            brand_id=int(os.environ.get("BRAND_ID", "40")),
+            sku_suffix=os.environ.get("SKU_SUFFIX", "-MY").strip(),
             reduction_fraction=Decimal(os.environ.get("REDUCTION_FRACTION", "0.08333333333333333333333333333")),
             minimum_price=Decimal(os.environ.get("MINIMUM_PRICE", "0.01")),
             report_path=Path(os.environ.get("REPORT_PATH", "proration-report.json")),
@@ -83,6 +85,8 @@ class Config:
             raise ValueError("MAX_PRODUCTS must be positive")
         if self.max_variants <= 0:
             raise ValueError("MAX_VARIANTS must be positive")
+        if self.brand_id <= 0:
+            raise ValueError("BRAND_ID must be positive")
         if not self.sku_suffix:
             raise ValueError("SKU_SUFFIX cannot be empty")
         if not Decimal("0") < self.reduction_fraction < Decimal("1"):
@@ -91,9 +95,12 @@ class Config:
             raise ValueError("MINIMUM_PRICE cannot be negative")
 
 
-def validate_scope(products: list[dict], config: Config) -> None:
+def validate_category_scope(products: list[dict], config: Config) -> None:
     if not products:
         raise ValueError(f"No products found in category {config.category_id}")
+
+
+def validate_update_scope(products: list[dict], config: Config) -> None:
     if len(products) > config.max_products:
         raise ValueError(
             f"Found {len(products)} products, exceeding MAX_PRODUCTS={config.max_products}"
@@ -102,6 +109,21 @@ def validate_scope(products: list[dict], config: Config) -> None:
     if config.require_hidden and visible:
         ids = ", ".join(str(product["id"]) for product in visible)
         raise ValueError(f"Visible products found while REQUIRE_HIDDEN=true: {ids}")
+
+
+def product_brand_id(product: dict) -> int | None:
+    brand_id = product.get("brand_id")
+    if brand_id in {None, ""}:
+        return None
+    return int(brand_id)
+
+
+def filter_products_by_brand_id(products: list[dict], config: Config) -> list[dict]:
+    return [
+        product
+        for product in products
+        if product_brand_id(product) == config.brand_id
+    ]
 
 
 def collect_variants(
@@ -115,6 +137,8 @@ def collect_variants(
                     **variant,
                     "product_id": product["id"],
                     "product_name": product["name"],
+                    "product_sku": product.get("sku", ""),
+                    "brand_id": product.get("brand_id"),
                     "is_visible": product["is_visible"],
                 }
             )
@@ -128,7 +152,8 @@ def find_matching_variants(
     suffix = config.sku_suffix.casefold()
     for variant in variants:
         sku = str(variant.get("sku") or "")
-        if sku.casefold().endswith(suffix):
+        product_sku = str(variant.get("product_sku") or "")
+        if sku.casefold().endswith(suffix) or product_sku.casefold().endswith(suffix):
             matches.append(variant)
 
     if len(matches) > config.max_variants:
@@ -149,6 +174,8 @@ def inspected_variant_summary(variants: list[dict]) -> list[dict]:
         {
             "product_id": variant["product_id"],
             "product_name": variant["product_name"],
+            "product_sku": variant.get("product_sku"),
+            "brand_id": variant.get("brand_id"),
             "variant_id": variant.get("id"),
             "sku": variant.get("sku"),
             "price": variant.get("price"),
@@ -160,8 +187,10 @@ def inspected_variant_summary(variants: list[dict]) -> list[dict]:
 
 def run(config: Config, client: BigCommerceClient) -> list[VariantPriceChange]:
     products = client.get_products_in_category(config.category_id)
-    validate_scope(products, config)
-    inspected_variants = collect_variants(products, client)
+    validate_category_scope(products, config)
+    matched_products = filter_products_by_brand_id(products, config)
+    validate_update_scope(matched_products, config)
+    inspected_variants = collect_variants(matched_products, client)
     variants = find_matching_variants(inspected_variants, config)
     changes = build_variant_price_changes(
         variants, config.reduction_fraction, config.minimum_price
@@ -169,7 +198,9 @@ def run(config: Config, client: BigCommerceClient) -> list[VariantPriceChange]:
 
     if not changes:
         LOGGER.warning(
-            "No variants with SKUs ending in %r were found", config.sku_suffix
+            "No variants with SKUs ending in %r were found for brand %r",
+            config.sku_suffix,
+            config.brand_id,
         )
 
     for change in changes:
@@ -192,9 +223,11 @@ def run(config: Config, client: BigCommerceClient) -> list[VariantPriceChange]:
         "generated_at": datetime.now(UTC).isoformat(),
         "mode": "apply" if config.apply_changes else "dry-run",
         "category_id": config.category_id,
+        "brand_id": config.brand_id,
         "sku_suffix": config.sku_suffix,
         "reduction_fraction": str(config.reduction_fraction),
-        "product_count": len(products),
+        "category_product_count": len(products),
+        "brand_product_count": len(matched_products),
         "inspected_variant_count": len(inspected_variants),
         "variant_count": len(changes),
         "inspected_variants": inspected_variant_summary(inspected_variants),
@@ -209,6 +242,7 @@ def write_error_report(config: Config, error: Exception) -> None:
         "generated_at": datetime.now(UTC).isoformat(),
         "mode": "error",
         "category_id": config.category_id,
+        "brand_id": config.brand_id,
         "sku_suffix": config.sku_suffix,
         "apply_changes": config.apply_changes,
         "error": str(error),

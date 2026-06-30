@@ -45,7 +45,7 @@ class BigCommerceClient:
                     "categories:in": category_id,
                     "page": page,
                     "limit": 250,
-                    "include_fields": "id,name,is_visible",
+                    "include_fields": "id,name,is_visible,brand_id,sku",
                 }
             )
             response = self._request("GET", f"/products?{query}")

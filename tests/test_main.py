@@ -9,7 +9,7 @@ from proration.main import (
     collect_variants,
     find_matching_variants,
     run,
-    validate_scope,
+    validate_update_scope,
     write_error_report,
 )
 
@@ -40,7 +40,8 @@ def make_config(report_path, *, apply_changes=False, require_hidden=True, max_pr
         require_hidden=require_hidden,
         max_products=max_products,
         max_variants=50,
-        sku_suffix="MY",
+        brand_id=40,
+        sku_suffix="-MY",
         reduction_fraction=Decimal(1) / Decimal(12),
         minimum_price=Decimal("0.01"),
         report_path=report_path,
@@ -49,7 +50,7 @@ def make_config(report_path, *, apply_changes=False, require_hidden=True, max_pr
 
 class RunTests(unittest.TestCase):
     def test_dry_run_writes_report_but_does_not_update(self):
-        products = [{"id": 1, "name": "Hidden", "is_visible": False}]
+        products = [{"id": 1, "name": "Hidden", "brand_id": 40, "is_visible": False}]
         variants = {1: [{"id": 10, "sku": "TEST-MY", "price": 120}]}
         with TemporaryDirectory() as directory:
             report_path = Path(directory) / "report.json"
@@ -59,11 +60,12 @@ class RunTests(unittest.TestCase):
             self.assertEqual(client.updates, [])
             report = json.loads(report_path.read_text(encoding="utf-8"))
             self.assertEqual(report["mode"], "dry-run")
+            self.assertEqual(report["brand_product_count"], 1)
             self.assertEqual(report["changes"][0]["new_price"], "110.00")
             self.assertEqual(report["changes"][0]["sku"], "TEST-MY")
 
     def test_apply_updates_price(self):
-        products = [{"id": 1, "name": "Hidden", "is_visible": False}]
+        products = [{"id": 1, "name": "Hidden", "brand_id": 40, "is_visible": False}]
         variants = {1: [{"id": 10, "sku": "TEST-MY", "price": 120}]}
         with TemporaryDirectory() as directory:
             client = FakeClient(products, variants)
@@ -71,7 +73,7 @@ class RunTests(unittest.TestCase):
             self.assertEqual(client.updates, [(1, 10, Decimal("110.00"))])
 
     def test_only_matching_variant_skus_are_selected_case_insensitively(self):
-        products = [{"id": 1, "name": "Hidden", "is_visible": False}]
+        products = [{"id": 1, "name": "Hidden", "sku": "PRODUCT", "is_visible": False}]
         variants = {
             1: [
                 {"id": 10, "sku": "TEST-my", "price": 120},
@@ -84,8 +86,40 @@ class RunTests(unittest.TestCase):
             matches = find_matching_variants(inspected, make_config(Path(directory) / "report.json"))
             self.assertEqual([variant["id"] for variant in matches], [10])
 
+    def test_parent_product_sku_can_select_variant_price(self):
+        products = [
+            {
+                "id": 1,
+                "name": "Hidden",
+                "sku": "PRODUCT-MY",
+                "brand_id": 40,
+                "is_visible": False,
+            }
+        ]
+        variants = {1: [{"id": 10, "sku": "DEFAULT", "price": 120}]}
+        with TemporaryDirectory() as directory:
+            client = FakeClient(products, variants)
+            run(make_config(Path(directory) / "report.json", apply_changes=True), client)
+
+            self.assertEqual(client.updates, [(1, 10, Decimal("110.00"))])
+
+    def test_only_matching_product_brands_are_inspected(self):
+        products = [
+            {"id": 1, "name": "Match", "brand_id": 40, "is_visible": False},
+            {"id": 2, "name": "Skip", "brand_id": 39, "is_visible": False},
+        ]
+        variants = {
+            1: [{"id": 10, "sku": "MATCH-MY", "price": 120}],
+            2: [{"id": 11, "sku": "SKIP-MY", "price": 120}],
+        }
+        with TemporaryDirectory() as directory:
+            client = FakeClient(products, variants)
+            changes = run(make_config(Path(directory) / "report.json"), client)
+
+            self.assertEqual([change.sku for change in changes], ["MATCH-MY"])
+
     def test_no_matching_variant_skus_writes_empty_report(self):
-        products = [{"id": 1, "name": "Hidden", "is_visible": False}]
+        products = [{"id": 1, "name": "Hidden", "brand_id": 40, "is_visible": False}]
         variants = {1: [{"id": 11, "sku": "TEST-OTHER", "price": 120}]}
         with TemporaryDirectory() as directory:
             report_path = Path(directory) / "report.json"
@@ -97,7 +131,9 @@ class RunTests(unittest.TestCase):
             report = json.loads(report_path.read_text(encoding="utf-8"))
             self.assertEqual(report["mode"], "apply")
             self.assertEqual(report["variant_count"], 0)
+            self.assertEqual(report["brand_id"], 40)
             self.assertEqual(report["inspected_variant_count"], 1)
+            self.assertEqual(report["inspected_variants"][0]["product_sku"], "")
             self.assertEqual(report["inspected_variants"][0]["sku"], "TEST-OTHER")
             self.assertEqual(report["changes"], [])
 
@@ -114,7 +150,7 @@ class RunTests(unittest.TestCase):
         products = [{"id": 1, "name": "Visible", "price": 120, "is_visible": True}]
         with TemporaryDirectory() as directory:
             with self.assertRaisesRegex(ValueError, "Visible products"):
-                validate_scope(products, make_config(Path(directory) / "report.json"))
+                validate_update_scope(products, make_config(Path(directory) / "report.json"))
 
     def test_too_many_products_fails_preflight(self):
         products = [
@@ -123,7 +159,7 @@ class RunTests(unittest.TestCase):
         ]
         with TemporaryDirectory() as directory:
             with self.assertRaisesRegex(ValueError, "exceeding MAX_PRODUCTS"):
-                validate_scope(
+                validate_update_scope(
                     products,
                     make_config(Path(directory) / "report.json", max_products=1),
                 )
@@ -140,6 +176,7 @@ class RunTests(unittest.TestCase):
                 require_hidden=config.require_hidden,
                 max_products=config.max_products,
                 max_variants=config.max_variants,
+                brand_id=config.brand_id,
                 sku_suffix=config.sku_suffix,
                 reduction_fraction=config.reduction_fraction,
                 minimum_price=config.minimum_price,
@@ -157,6 +194,7 @@ class RunTests(unittest.TestCase):
             report = json.loads(report_path.read_text(encoding="utf-8"))
             self.assertEqual(report["mode"], "error")
             self.assertEqual(report["category_id"], 42)
+            self.assertEqual(report["brand_id"], 40)
             self.assertTrue(report["apply_changes"])
             self.assertEqual(report["error"], "Visible products found")
             self.assertEqual(report["changes"], [])

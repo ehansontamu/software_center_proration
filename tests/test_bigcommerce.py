@@ -36,18 +36,22 @@ class ClientTests(unittest.TestCase):
         self.assertNotIn(b"secret", requests[0].data)
 
     def test_category_products_are_paginated(self):
+        requests = []
         pages = [
             {"data": [{"id": 1}], "meta": {"pagination": {"total_pages": 2}}},
             {"data": [{"id": 2}], "meta": {"pagination": {"total_pages": 2}}},
         ]
 
         def opener(request, timeout):
+            requests.append(request)
             return FakeResponse(pages.pop(0))
 
         client = BigCommerceClient("store", "secret", opener=opener)
         products = client.get_products_in_category(42)
 
         self.assertEqual([product["id"] for product in products], [1, 2])
+        self.assertIn("brand_id", requests[0].full_url)
+        self.assertIn("sku", requests[0].full_url)
 
     def test_product_variants_are_paginated(self):
         pages = [
