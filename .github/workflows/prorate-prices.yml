@@ -44,7 +44,7 @@ jobs:
           ALLOWED_CATEGORY_ID: "44"
           APPLY_CHANGES: ${{ github.event_name == 'schedule' || inputs.apply_changes == true }}
           REQUIRE_HIDDEN: "false"
-          MAX_PRODUCTS: ${{ vars.PRORATION_MAX_PRODUCTS || '25' }}
+          MAX_PRODUCTS: ${{ vars.PRORATION_MAX_PRODUCTS || '50' }}
           MAX_VARIANTS: ${{ vars.PRORATION_MAX_VARIANTS || '50' }}
           BRAND_IDS: "40,39"
           SKU_SUFFIX: "-MY"

@@ -19,7 +19,7 @@ the current variant price.
 - Only variant SKUs ending in `-MY` (case-insensitive) are selected.
 - The parent product default price is used as the base price for the calculation.
 - A matching variant without an explicit variant price aborts the entire run.
-- The run aborts before any update when more than 25 products are found.
+- The run aborts before any update when more than 50 eligible brand-filtered products are found.
 - The run aborts before any update when more than 50 variants match.
 - Prices use decimal arithmetic, round to cents, and never drop below `$0.01`.
 - API throttling and temporary server failures are retried.
@@ -66,7 +66,7 @@ In GitHub, open **Settings > Secrets and variables > Actions** and add:
 | --- | --- | --- |
 | Secret | `BIGCOMMERCE_STORE_HASH` | Store hash only, not a URL |
 | Secret | `BIGCOMMERCE_ACCESS_TOKEN` | Store API account token |
-| Variable | `PRORATION_MAX_PRODUCTS` | A small test limit such as `10` |
+| Variable | `PRORATION_MAX_PRODUCTS` | Optional; defaults to `50` |
 | Variable | `PRORATION_MAX_VARIANTS` | A small test limit such as `10` |
 
 Do not store the token in the repository.

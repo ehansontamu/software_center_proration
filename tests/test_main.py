@@ -36,7 +36,7 @@ def make_config(
     *,
     apply_changes=False,
     require_hidden=True,
-    max_products=25,
+    max_products=50,
     run_date=date(2026, 7, 6),
     schedule_mode="daily_test",
 ):

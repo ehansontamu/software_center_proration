@@ -75,7 +75,7 @@ class Config:
             ),
             apply_changes=parse_bool(os.environ.get("APPLY_CHANGES")),
             require_hidden=parse_bool(os.environ.get("REQUIRE_HIDDEN"), default=True),
-            max_products=int(os.environ.get("MAX_PRODUCTS", "25")),
+            max_products=int(os.environ.get("MAX_PRODUCTS", "50")),
             max_variants=int(os.environ.get("MAX_VARIANTS", "50")),
             brand_ids=parse_int_list(os.environ.get("BRAND_IDS", "40,39")),
             sku_suffix=os.environ.get("SKU_SUFFIX", "-MY").strip(),
