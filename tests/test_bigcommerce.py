@@ -52,6 +52,7 @@ class ClientTests(unittest.TestCase):
         self.assertEqual([product["id"] for product in products], [1, 2])
         self.assertIn("brand_id", requests[0].full_url)
         self.assertIn("sku", requests[0].full_url)
+        self.assertIn("price", requests[0].full_url)
 
     def test_product_variants_are_paginated(self):
         pages = [

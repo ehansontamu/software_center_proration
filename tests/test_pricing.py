@@ -1,7 +1,7 @@
 from decimal import Decimal
 import unittest
 
-from proration.pricing import build_variant_price_changes, reduced_price
+from proration.pricing import build_variant_price_changes, prorated_price, reduced_price
 
 
 class ReducedPriceTests(unittest.TestCase):
@@ -29,18 +29,33 @@ class ReducedPriceTests(unittest.TestCase):
                 {
                     "id": 7,
                     "sku": "SOFTWARE-MY",
-                    "price": 24,
+                    "brand_id": 40,
+                    "proration_event": 1,
+                    "price": 20,
+                    "base_price": 24,
                     "product_id": 3,
                     "product_name": "Test",
                     "is_visible": False,
                 }
             ],
-            Decimal(1) / Decimal(12),
             Decimal("0.01"),
         )
         self.assertEqual(changes[0].product_id, 3)
         self.assertEqual(changes[0].variant_id, 7)
+        self.assertEqual(changes[0].old_price, Decimal("20.00"))
+        self.assertEqual(changes[0].base_price, Decimal("24.00"))
         self.assertEqual(changes[0].new_price, Decimal("22.00"))
+
+    def test_prorated_price_uses_event_number_from_base_price(self):
+        self.assertEqual(
+            prorated_price(
+                Decimal("120.00"),
+                6,
+                periods=12,
+                minimum_price=Decimal("0.01"),
+            ),
+            Decimal("60.00"),
+        )
 
 
 if __name__ == "__main__":

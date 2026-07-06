@@ -1,6 +1,9 @@
 name: Prorate BigCommerce prices
 
 on:
+  schedule:
+    # Daily at midnight America/Chicago during daylight time.
+    - cron: "0 5 * * *"
   workflow_dispatch:
     inputs:
       apply_changes:
@@ -10,7 +13,7 @@ on:
         type: boolean
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: bigcommerce-price-proration
@@ -39,15 +42,29 @@ jobs:
           BIGCOMMERCE_ACCESS_TOKEN: ${{ secrets.BIGCOMMERCE_ACCESS_TOKEN }}
           BIGCOMMERCE_CATEGORY_ID: "44"
           ALLOWED_CATEGORY_ID: "44"
-          APPLY_CHANGES: ${{ inputs.apply_changes == true }}
+          APPLY_CHANGES: ${{ github.event_name == 'schedule' || inputs.apply_changes == true }}
           REQUIRE_HIDDEN: "false"
           MAX_PRODUCTS: ${{ vars.PRORATION_MAX_PRODUCTS || '25' }}
           MAX_VARIANTS: ${{ vars.PRORATION_MAX_VARIANTS || '50' }}
-          BRAND_ID: "40"
+          BRAND_IDS: "40,39"
           SKU_SUFFIX: "-MY"
-          REDUCTION_FRACTION: "0.08333333333333333333333333333"
+          PRORATION_MODE: "daily_test"
+          PRORATION_PERIODS: "12"
           MINIMUM_PRICE: "0.01"
         run: python -m proration
+
+      - name: Commit proration state
+        if: success() && hashFiles('state/proration-state.json') != ''
+        run: |
+          if [ -z "$(git status --porcelain -- state/proration-state.json)" ]; then
+            echo "No proration state changes to commit."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add state/proration-state.json
+            git commit -m "Update proration state for ${{ github.run_id }}"
+            git push
+          fi
 
       - name: Upload audit report
         if: always() && hashFiles('proration-report.json') != ''
