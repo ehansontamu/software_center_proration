@@ -1,0 +1,17 @@
+{
+  "daily-test": {
+    "variants": {
+      "440": {
+        "base_price": "100.00",
+        "brand_id": 40,
+        "last_applied_on": "2026-07-07",
+        "last_event": 1,
+        "last_price": "91.67",
+        "product_id": 263,
+        "product_name": "prorationtestproduct",
+        "sku": "PRORATIONTEST-MY",
+        "variant_id": 440
+      }
+    }
+  }
+}
